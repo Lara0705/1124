@@ -1,1 +1,404 @@
- 
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>物理引擎生成器</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        #info {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            font-family: Arial;
+            font-size: 14px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">物體數量: 0 | FPS: 0</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script>
+        const Engine = Matter.Engine,
+              Render = Matter.Render,
+              World = Matter.World,
+              Bodies = Matter.Bodies;
+
+        const engine = Engine.create();
+        const render = Render.create({
+            element: document.body,
+            engine: engine,
+            options: {
+                width: window.innerWidth,
+                height: window.innerHeight,
+                wireframes: false
+            }
+        });
+
+        // 創建邊界
+        const walls = [
+            Bodies.rectangle(window.innerWidth/2, 0, window.innerWidth, 60, { isStatic: true }),
+            Bodies.rectangle(window.innerWidth/2, window.innerHeight, window.innerWidth, 60, { isStatic: true }),
+            Bodies.rectangle(0, window.innerHeight/2, 60, window.innerHeight, { isStatic: true }),
+            Bodies.rectangle(window.innerWidth, window.innerHeight/2, 60, window.innerHeight, { isStatic: true })
+        ];
+        World.add(engine.world, walls);
+
+        // 初始化變量
+        let isMouseDown = false;
+        let bodies = [];
+        let lastTime = performance.now();
+        let frames = 0;
+        let fps = 0;
+        let mouseX = 0;
+        let mouseY = 0;
+
+        // 生成隨機顏色
+        function getRandomColor() {
+            return '#' + Math.floor(Math.random()*16777215).toString(16);
+        }
+
+        // 修改：生成隨機形狀
+        function createRandomBody(x, y) {
+            const size = 20 + Math.random() * 30;
+            const shapes = [
+                // 圓形小怪物
+                () => {
+                    const body = Bodies.circle(x, y, size/2, {
+                        render: {
+                            fillStyle: getRandomColor(),
+                            sprite: {
+                                texture: createMonsterSprite(size, 'round')
+                            }
+                        }
+                    });
+                    return body;
+                },
+                // 方形小怪物
+                () => {
+                    const body = Bodies.rectangle(x, y, size, size, {
+                        render: {
+                            fillStyle: getRandomColor(),
+                            sprite: {
+                                texture: createMonsterSprite(size, 'square')
+                            }
+                        }
+                    });
+                    return body;
+                },
+                // 三角形小怪物
+                () => {
+                    const body = Bodies.polygon(x, y, 3, size/2, {
+                        render: {
+                            fillStyle: getRandomColor(),
+                            sprite: {
+                                texture: createMonsterSprite(size, 'triangle')
+                            }
+                        }
+                    });
+                    return body;
+                }
+            ];
+            return shapes[Math.floor(Math.random() * shapes.length)]();
+        }
+
+        // 修改：創建小怪物圖像
+        function createMonsterSprite(size, type) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = size * 1.5;
+            canvas.height = size * 1.5;
+            
+            ctx.save();
+            ctx.translate(size * 0.75, size * 0.75);
+            
+            const bodyColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
+            ctx.fillStyle = bodyColor;
+            
+            // 先畫絨毛
+            drawFur(ctx, size, bodyColor, type);
+            
+            // 繪製手腳
+            drawLimbs(ctx, size, bodyColor);
+            
+            // 繪製身體
+            switch(type) {
+                case 'round':
+                    ctx.beginPath();
+                    ctx.arc(0, 0, size/2, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                case 'square':
+                    ctx.fillRect(-size/2, -size/2, size, size);
+                    break;
+                case 'triangle':
+                    ctx.beginPath();
+                    ctx.moveTo(-size/2, size/2);
+                    ctx.lineTo(size/2, size/2);
+                    ctx.lineTo(0, -size/2);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+            }
+
+            // 繪製角
+            drawHorns(ctx, size, bodyColor);
+            
+            // 繪製眼睛和表情
+            drawFace(ctx, size);
+            
+            ctx.restore();
+            return canvas.toDataURL();
+        }
+
+        // 新增：繪製絨毛
+        function drawFur(ctx, size, color, type) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            
+            // 根據形狀類型決定絨毛的位置
+            let furPoints = [];
+            switch(type) {
+                case 'round':
+                    for(let i = 0; i < 360; i += 15) {
+                        const angle = (i * Math.PI) / 180;
+                        furPoints.push({
+                            x: Math.cos(angle) * (size/2),
+                            y: Math.sin(angle) * (size/2)
+                        });
+                    }
+                    break;
+                case 'square':
+                    // 方形四邊的絨毛
+                    for(let i = -size/2; i <= size/2; i += 10) {
+                        furPoints.push({x: i, y: -size/2});
+                        furPoints.push({x: i, y: size/2});
+                        furPoints.push({x: -size/2, y: i});
+                        furPoints.push({x: size/2, y: i});
+                    }
+                    break;
+                case 'triangle':
+                    // 三角形三邊的絨毛
+                    for(let i = 0; i <= 1; i += 0.1) {
+                        furPoints.push({
+                            x: -size/2 + i * size,
+                            y: size/2
+                        });
+                        furPoints.push({
+                            x: -size/2 + i * (size/2),
+                            y: size/2 - i * size
+                        });
+                        furPoints.push({
+                            x: size/2 - i * (size/2),
+                            y: size/2 - i * size
+                        });
+                    }
+                    break;
+            }
+
+            // 繪製絨毛
+            furPoints.forEach(point => {
+                const furLength = Math.random() * 8 + 4;
+                const angle = Math.atan2(point.y, point.x);
+                ctx.beginPath();
+                ctx.moveTo(point.x, point.y);
+                ctx.lineTo(
+                    point.x + Math.cos(angle) * furLength,
+                    point.y + Math.sin(angle) * furLength
+                );
+                ctx.stroke();
+            });
+        }
+
+        // 新增：繪製角
+        function drawHorns(ctx, size, color) {
+            ctx.fillStyle = color;
+            ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+            ctx.lineWidth = 2;
+
+            // 隨機選擇角的類型
+            const hornTypes = [
+                // 尖角
+                () => {
+                    ctx.beginPath();
+                    ctx.moveTo(-size/3, -size/2);
+                    ctx.lineTo(-size/4, -size*0.8);
+                    ctx.lineTo(-size/6, -size/2);
+                    ctx.moveTo(size/3, -size/2);
+                    ctx.lineTo(size/4, -size*0.8);
+                    ctx.lineTo(size/6, -size/2);
+                    ctx.fill();
+                    ctx.stroke();
+                },
+                // 彎角
+                () => {
+                    ctx.beginPath();
+                    ctx.moveTo(-size/3, -size/2);
+                    ctx.quadraticCurveTo(
+                        -size/2, -size*0.9,
+                        -size/4, -size*0.7
+                    );
+                    ctx.lineTo(-size/6, -size/2);
+                    ctx.moveTo(size/3, -size/2);
+                    ctx.quadraticCurveTo(
+                        size/2, -size*0.9,
+                        size/4, -size*0.7
+                    );
+                    ctx.lineTo(size/6, -size/2);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+            ];
+
+            // 隨機執行一種角的繪製方式
+            hornTypes[Math.floor(Math.random() * hornTypes.length)]();
+        }
+
+        // 新增：繪製手腳
+        function drawLimbs(ctx, size, color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = size * 0.15;
+            ctx.lineCap = 'round';
+
+            // 手臂
+            const armAngleLeft = -Math.PI/4 + Math.random() * Math.PI/2;  // 隨機角度
+            const armAngleRight = Math.PI/4 + Math.random() * Math.PI/2;
+            
+            // 左手
+            ctx.beginPath();
+            ctx.moveTo(-size/2, 0);
+            ctx.lineTo(-size/2 - Math.cos(armAngleLeft) * size/2, 
+                      Math.sin(armAngleLeft) * size/2);
+            // 畫小手掌
+            ctx.lineTo(-size/2 - Math.cos(armAngleLeft) * size/1.8, 
+                      Math.sin(armAngleLeft) * size/1.8);
+            ctx.stroke();
+
+            // 右手
+            ctx.beginPath();
+            ctx.moveTo(size/2, 0);
+            ctx.lineTo(size/2 + Math.cos(armAngleRight) * size/2, 
+                      Math.sin(armAngleRight) * size/2);
+            // 畫小手掌
+            ctx.lineTo(size/2 + Math.cos(armAngleRight) * size/1.8, 
+                      Math.sin(armAngleRight) * size/1.8);
+            ctx.stroke();
+
+            // 腿
+            const legSpread = Math.random() * 0.3 + 0.2;  // 隨機腿部張開程度
+            
+            // 左腿
+            ctx.beginPath();
+            ctx.moveTo(-size/4, size/2);
+            ctx.lineTo(-size/3, size);
+            ctx.lineTo(-size/3 - size/6, size + size/8);  // 小腳
+            ctx.stroke();
+
+            // 右腿
+            ctx.beginPath();
+            ctx.moveTo(size/4, size/2);
+            ctx.lineTo(size/3, size);
+            ctx.lineTo(size/3 + size/6, size + size/8);  // 小腳
+            ctx.stroke();
+        }
+
+        // 新增：繪製臉部表情
+        function drawFace(ctx, size) {
+            // 眼睛
+            ctx.fillStyle = 'white';
+            const eyeSize = size * 0.15;
+            ctx.beginPath();
+            ctx.arc(-size/5, -size/8, eyeSize, 0, Math.PI * 2);
+            ctx.arc(size/5, -size/8, eyeSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 眼珠（隨機看向不同方向）
+            ctx.fillStyle = 'black';
+            const pupilSize = eyeSize * 0.6;
+            const pupilOffset = Math.random() * eyeSize/2 - eyeSize/4;
+            ctx.beginPath();
+            ctx.arc(-size/5 + pupilOffset, -size/8, pupilSize, 0, Math.PI * 2);
+            ctx.arc(size/5 + pupilOffset, -size/8, pupilSize, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 隨機表情（開心、驚訝或微笑）
+            const expressions = [
+                // 開心
+                () => {
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 2;
+                    ctx.arc(0, size/6, size/4, 0, Math.PI);
+                    ctx.stroke();
+                },
+                // 驚訝
+                () => {
+                    ctx.beginPath();
+                    ctx.fillStyle = 'black';
+                    ctx.arc(0, size/6, size/6, 0, Math.PI * 2);
+                    ctx.fill();
+                },
+                // 微笑
+                () => {
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 2;
+                    ctx.arc(0, 0, size/4, Math.PI/6, Math.PI * 5/6);
+                    ctx.stroke();
+                }
+            ];
+            expressions[Math.floor(Math.random() * expressions.length)]();
+        }
+
+        // 滑鼠事件處理
+        document.addEventListener('mousedown', (e) => {
+            isMouseDown = true;
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        document.addEventListener('mouseup', () => {
+            isMouseDown = false;
+        });
+
+        // 追蹤滑鼠位置
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        // 定時生成物體
+        setInterval(() => {
+            if (isMouseDown) {
+                const body = createRandomBody(mouseX, mouseY);
+                World.add(engine.world, body);
+                bodies.push(body);
+            }
+        }, 100); // 每秒10個 (1000ms/10 = 100ms)
+
+        // 更新計數器和FPS
+        function updateInfo() {
+            frames++;
+            const time = performance.now();
+            if (time - lastTime >= 1000) {
+                fps = frames;
+                frames = 0;
+                lastTime = time;
+            }
+            document.getElementById('info').textContent = 
+                `物體數量: ${bodies.length} | FPS: ${fps}`;
+            requestAnimationFrame(updateInfo);
+        }
+
+        Engine.run(engine);
+        Render.run(render);
+        updateInfo();
+    </script>
+</body>
+</html> 
