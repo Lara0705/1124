@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>星空與月相</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #0a0a2a;
+            cursor: none;
+        }
+
+        .star {
+            position: absolute;
+            color: white;
+            pointer-events: none;
+        }
+
+        #earth {
+            position: absolute;
+            font-size: 300px;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #moon {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            pointer-events: none;
+            transition: all 0.1s ease;
+            z-index: 0;
+            background-image: url('./image/station1.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            transform: rotate(90deg);
+        }
+
+        .shooting-star {
+            position: absolute;
+            width: 200px;
+            height: 4px;
+            background: linear-gradient(90deg, 
+                rgba(255, 255, 255, 0.7), 
+                rgba(255, 255, 255, 0.4),
+                rgba(255, 255, 255, 0)
+            );
+            box-shadow: 
+                0 0 10px rgba(255, 255, 255, 0.3),
+                0 0 20px rgba(255, 255, 255, 0.2),
+                0 0 30px rgba(255, 255, 255, 0.1);
+            opacity: 0;
+        }
+
+        /* 新增提示文字樣式 */
+        #musicPrompt {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 18px;
+            text-align: center;
+            z-index: 3;
+        }
+    </style>
+</head>
+<body>
+    <div id="earth">🌍</div>
+    <div id="moon"></div>
+    <!-- 新增音樂元素和提示文字 -->
+    <audio id="bgMusic" src="./music/上學真快樂.mp3" loop></audio>
+    <div id="musicPrompt">點擊畫面播放音樂</div>
+
+    <script>
+        const moon = document.getElementById('moon');
+        
+        // 修改月球移動邏輯
+        let lastX = 0;
+        document.addEventListener('mousemove', (e) => {
+            const movingRight = e.clientX > lastX;
+            moon.style.zIndex = movingRight ? 0 : 2;  // 右移時在下層，左移時在上層
+            
+            moon.style.left = e.clientX - 100 + 'px';
+            moon.style.top = e.clientY - 100 + 'px';
+            
+            lastX = e.clientX;
+        });
+
+        // 修改星星數量
+        function createStar() {
+            const star = document.createElement('div');
+            star.className = 'star';
+            star.style.left = Math.random() * window.innerWidth + 'px';
+            star.style.top = Math.random() * window.innerHeight + 'px';
+            star.style.fontSize = Math.random() * 6 + 4 + 'px'; // 調整星星大小範圍
+            star.textContent = Math.random() > 0.5 ? '⭐' : '✨'; // 隨機使用兩種星星emoji
+            star.style.opacity = Math.random();
+            document.body.appendChild(star);
+            
+            // 星星閃爍動畫
+            setInterval(() => {
+                star.style.opacity = Math.random();
+            }, Math.random() * 3000 + 1000);
+        }
+
+        // 增加星星數量
+        for (let i = 0; i < 200; i++) {
+            createStar();
+        }
+
+        // 修改：創建隨機方向的流星
+        function createShootingStar() {
+            const shootingStar = document.createElement('div');
+            shootingStar.className = 'shooting-star';
+            
+            // 隨機決定起始位置和方向
+            const startSide = Math.floor(Math.random() * 4); // 0:上, 1:右, 2:下, 3:左
+            const angle = Math.random() * 45 - 22.5; // -22.5到22.5度的隨機角度
+            
+            let startX, startY, endX, endY, baseAngle;
+            
+            switch(startSide) {
+                case 0: // 從上方開始
+                    startX = Math.random() * window.innerWidth;
+                    startY = -100;
+                    baseAngle = 90;
+                    break;
+                case 1: // 從右方開始
+                    startX = window.innerWidth + 100;
+                    startY = Math.random() * window.innerHeight;
+                    baseAngle = 180;
+                    break;
+                case 2: // 從下方開始
+                    startX = Math.random() * window.innerWidth;
+                    startY = window.innerHeight + 100;
+                    baseAngle = 270;
+                    break;
+                case 3: // 從左方開始
+                    startX = -100;
+                    startY = Math.random() * window.innerHeight;
+                    baseAngle = 0;
+                    break;
+            }
+            
+            const finalAngle = baseAngle + angle;
+            shootingStar.style.left = startX + 'px';
+            shootingStar.style.top = startY + 'px';
+            shootingStar.style.transform = `rotate(${finalAngle}deg)`;
+            
+            // 計算終點位置
+            const distance = Math.max(window.innerWidth, window.innerHeight) * 1.5;
+            const animation = shootingStar.animate([
+                { 
+                    left: startX + 'px',
+                    top: startY + 'px',
+                    opacity: 0.8
+                },
+                { 
+                    left: (startX + distance * Math.cos(finalAngle * Math.PI / 180)) + 'px',
+                    top: (startY + distance * Math.sin(finalAngle * Math.PI / 180)) + 'px',
+                    opacity: 0
+                }
+            ], {
+                duration: 2000,
+                easing: 'linear'
+            });
+            
+            document.body.appendChild(shootingStar);
+            
+            animation.onfinish = () => {
+                shootingStar.remove();
+            };
+        }
+
+        // 定期產生流星
+        setInterval(createShootingStar, 2000); // 每2秒產生一顆流星
+
+        // 新增音樂控制
+        const bgMusic = document.getElementById('bgMusic');
+        const musicPrompt = document.getElementById('musicPrompt');
+        let musicStarted = false;
+
+        document.addEventListener('click', () => {
+            if (!musicStarted) {
+                bgMusic.play();
+                musicStarted = true;
+                musicPrompt.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html> 

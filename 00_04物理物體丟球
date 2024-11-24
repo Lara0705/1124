@@ -1,0 +1,88 @@
+// ... 前面的代碼保持不變 ...
+
+        // 新增：Matter.js 約束模組
+        const MouseConstraint = Matter.MouseConstraint;
+        const Mouse = Matter.Mouse;
+        const Constraint = Matter.Constraint;
+
+        // 修改：初始化變量
+        let isMouseDown = false;
+        let bodies = [];
+        let lastTime = performance.now();
+        let frames = 0;
+        let fps = 0;
+        let mouseX = 0;
+        let mouseY = 0;
+        let selectedBody = null;
+        let mouseConstraint = null;
+
+        // 新增：創建滑鼠互動
+        const mouse = Mouse.create(render.canvas);
+        const mouseConstraintObj = MouseConstraint.create(engine, {
+            mouse: mouse,
+            constraint: {
+                stiffness: 0.2,
+                render: {
+                    visible: false
+                }
+            }
+        });
+
+        World.add(engine.world, mouseConstraintObj);
+        render.mouse = mouse;
+
+        // 修改：滑鼠事件處理
+        document.addEventListener('mousedown', (e) => {
+            isMouseDown = true;
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+
+            // 檢查是否點擊到物體
+            const bodies = Matter.Query.point(engine.world.bodies, { x: mouseX, y: mouseY });
+            if (bodies.length > 0 && !bodies[0].isStatic) {
+                selectedBody = bodies[0];
+            } else {
+                // 如果點擊空白處，創建新物體
+                const body = createRandomBody(mouseX, mouseY);
+                World.add(engine.world, body);
+                bodies.push(body);
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        });
+
+        document.addEventListener('mouseup', () => {
+            isMouseDown = false;
+            selectedBody = null;
+            // 移除所有滑鼠約束
+            if (mouseConstraintObj.constraint.bodyB) {
+                mouseConstraintObj.constraint.bodyB = null;
+            }
+        });
+
+        // 修改：生成物體的間隔控制
+        let lastSpawnTime = 0;
+        const spawnInterval = 100; // 生成間隔（毫秒）
+
+        // 修改：更新函數
+        function update() {
+            const currentTime = performance.now();
+
+            // 處理物體生成
+            if (isMouseDown && !selectedBody && currentTime - lastSpawnTime >= spawnInterval) {
+                const body = createRandomBody(mouseX, mouseY);
+                World.add(engine.world, body);
+                bodies.push(body);
+                lastSpawnTime = currentTime;
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        // 啟動更新循環
+        update();
+
+// ... 後面的代碼保持不變 ...

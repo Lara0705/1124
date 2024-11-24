@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>采彤的作品集</title>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f0f2f5;
+        }
+
+        h1 {
+            color: #1a237e;
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 2px solid #1a237e;
+            margin-bottom: 30px;
+        }
+
+        .project-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .project-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .project-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .project-card h2 {
+            color: #303f9f;
+            margin-top: 0;
+            font-size: 1.2em;
+        }
+
+        .project-card p {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+
+        .project-card a {
+            display: inline-block;
+            background: #3f51b5;
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            transition: background 0.3s ease;
+        }
+
+        .project-card a:hover {
+            background: #303f9f;
+        }
+    </style>
+</head>
+<body>
+    <h1>采彤的作品集</h1>
+    
+    <div class="project-grid">
+        <div class="project-card">
+            <h2>物理約束模擬</h2>
+            <p>使用Matter.js實現的物理約束效果，包含彈性和剛性約束。</p>
+            <a href="00_00采彤的約束.html">查看演示</a>
+        </div>
+
+        <div class="project-card">
+            <h2>Emoji 列表</h2>
+            <p>展示各種可用的Emoji表情符號，支持點擊複製功能。</p>
+            <a href="00_01采彤的網頁.html.html">查看演示</a>
+        </div>
+
+        <div class="project-card">
+            <h2>星空與月相</h2>
+            <p>互動式星空場景，包含月球移動和流星效果。</p>
+            <a href="00_02採彤的網頁.html">查看演示</a>
+        </div>
+
+        <div class="project-card">
+            <h2>物理引擎生成器</h2>
+            <p>使用Matter.js創建的物理引擎演示，可生成各種物體。</p>
+            <a href="00_03我的物理生成">查看演示</a>
+        </div>
+
+        <div class="project-card">
+            <h2>臉部辨識</h2>
+            <p>使用MediaPipe實現的即時臉部特徵點檢測。</p>
+            <a href="00_05我的臉部辨識.html">查看演示</a>
+        </div>
+
+        <div class="project-card">
+            <h2>臉部特效</h2>
+            <p>基於臉部辨識的有趣特效，包含表情互動。</p>
+            <a href="00_06我的臉部特效.html">查看演示</a>
+        </div>
+
+        <div class="project-card">
+            <h2>手部標記</h2>
+            <p>使用MediaPipe實現的手部關節點檢測。</p>
+            <a href="00_07手部標記.html">查看演示</a>
+        </div>
+
+        <div class="project-card">
+            <h2>手部彩球互動</h2>
+            <p>結合手部檢測和物理引擎的互動效果。</p>
+            <a href="00_08手部彩球.html">查看演示</a>
+        </div>
+    </div>
+</body>
+</html> 

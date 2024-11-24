@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>趣味人臉效果</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            position: relative;
+        }
+        #webcam, #output_canvas, #effect_canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+        #status {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+        }
+        #webcam {
+            transform: rotateY(180deg);
+        }
+        #output_canvas, #effect_canvas {
+            transform: rotateY(180deg);
+        }
+    </style>
+</head>
+<body>
+    <div id="status">系統狀態: 初始化中...</div>
+    <div class="container">
+        <video id="webcam" width="1280" height="720" autoplay></video>
+        <canvas id="output_canvas" width="1280" height="720"></canvas>
+        <canvas id="effect_canvas" width="1280" height="720"></canvas>
+    </div>
+
+<script type="module">
+import vision from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+const { FaceLandmarker, FilesetResolver, DrawingUtils } = vision;
+
+const statusElement = document.getElementById('status');
+const video = document.getElementById('webcam');
+const canvasElement = document.getElementById('output_canvas');
+const effectCanvas = document.getElementById('effect_canvas');
+const canvasCtx = canvasElement.getContext('2d');
+const effectCtx = effectCanvas.getContext('2d');
+
+let faceLandmarker;
+let runningMode = "VIDEO";
+let lastVideoTime = -1;
+let results = undefined;
+let particles = [];
+let lastMouthOpenTime = 0;
+
+// 載入煎蛋emoji圖片
+const eggImage = new Image();
+eggImage.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEwAACxMBAJqcGAAAAZlJREFUWIXt1j1rFFEUBuBn1g8EQVHBQhBEEEQQbGysLP0BNhY2/gJ/g5WVjYV/wEbBUkEUREEQRBAEQRAEQcRC0MTCJcgaNqvF7khmJ7O7M7PJFuYtLnPvOe95z7n3nHNZIpFIJBJ7gXwvF+/0eqfxEG34htlePx+GfQX4jwEyDOMWnuFmDPL9ADBXC8KxCOQk7uA+rkQkL2CQr4UgH0YVuIw7eIBzEQB38QQD5BvhyIdxK3AJt/EIZ2KSr0YgH0UBuIjbeIwTMclXopCPowDM4xae4lgM8uUY5JMoAOdxE89xNAb5UgzyaRSAM1jECxyOQb4Yg3wWBWAON/AKh2KQL8QgX40CcBrX8QaHY5DPxyBfiwJwCtfwFgdj5P18DPL1KAAnEz75RhSATVSBE7iK9yiikC/FIN+MArCNZ/AYH1FEIF+MQb4VBWAbz+AoPuF3BPKFGOQ7UQDKPIPv+IXdCOTzMci3owDs4Bkcwk/8jEA+F4N8JwrALp7BQXzFjwjkczHId6MAlHkGX/A9AvlsDPJEIpFIJBJ7jz8YWqZLcYQhNwAAAABJRU5ErkJggg==';
+
+class Particle {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.vx = (Math.random() - 0.5) * 10; // 水平速度
+        this.vy = -Math.random() * 15; // 垂直速度
+        this.gravity = 0.5;
+        this.alpha = 1;
+        this.life = 1;
+        this.size = Math.random() * 20 + 10;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.vy += this.gravity;
+        this.y += this.vy;
+        this.life -= 0.02;
+        this.alpha = this.life;
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.fillStyle = 'yellow';
+        ctx.beginPath();
+        const spikes = 5;
+        const rot = Math.PI / 2 * 3;
+        const step = Math.PI / spikes;
+        const outerRadius = this.size;
+        const innerRadius = this.size / 2;
+
+        let x = this.x;
+        let y = this.y;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y - outerRadius);
+
+        for (let i = 0; i < spikes; i++) {
+            x = this.x + Math.cos(rot + step * i) * outerRadius;
+            y = this.y + Math.sin(rot + step * i) * outerRadius;
+            ctx.lineTo(x, y);
+            x = this.x + Math.cos(rot + step * i + step/2) * innerRadius;
+            y = this.y + Math.sin(rot + step * i + step/2) * innerRadius;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(this.x, this.y - outerRadius);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+function updateStatus(message) {
+    statusElement.textContent = `系統狀態: ${message}`;
+}
+
+async function initializeFaceLandmarker() {
+    try {
+        updateStatus("載入模型中...");
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        );
+        faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+            baseOptions: {
+                modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+                delegate: "GPU"
+            },
+            outputFaceBlendshapes: true,
+            runningMode,
+            numFaces: 1
+        });
+        updateStatus("模型載入完成");
+        startCamera();
+    } catch (error) {
+        updateStatus(`錯誤: ${error.message}`);
+    }
+}
+
+async function startCamera() {
+    try {
+        const constraints = {
+            video: {
+                width: 1280,
+                height: 720
+            }
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        video.addEventListener('loadeddata', predictWebcam);
+        updateStatus("攝影機啟動成功");
+    } catch (error) {
+        updateStatus(`攝影機錯誤: ${error.message}`);
+    }
+}
+
+function isMouthOpen(landmarks) {
+    // 上唇中點（13）和下唇中點（14）的距離
+    const upperLip = landmarks[13];
+    const lowerLip = landmarks[14];
+    const distance = Math.sqrt(
+        Math.pow(upperLip.x - lowerLip.x, 2) + 
+        Math.pow(upperLip.y - lowerLip.y, 2)
+    );
+    return distance > 0.05; // 調整這個閾值以改變判定嘴巴開啟的敏感度
+}
+
+function createParticles(x, y) {
+    const now = Date.now();
+    if (now - lastMouthOpenTime > 50) { // 每50ms產生一顆星星
+        particles.push(new Particle(x, y));
+        lastMouthOpenTime = now;
+    }
+}
+
+function updateParticles() {
+    effectCtx.clearRect(0, 0, effectCanvas.width, effectCanvas.height);
+    
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw(effectCtx);
+        
+        if (particles[i].life <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+async function predictWebcam() {
+    if (!faceLandmarker) {
+        updateStatus("模型尚未準備好");
+        return;
+    }
+
+    try {
+        if (lastVideoTime !== video.currentTime) {
+            lastVideoTime = video.currentTime;
+            results = faceLandmarker.detectForVideo(video, performance.now());
+        }
+
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        
+        if (results.faceLandmarks) {
+            for (const landmarks of results.faceLandmarks) {
+                // 繪製左眼煎蛋
+                const leftEye = landmarks[159]; // 左眼中心點
+                canvasCtx.drawImage(eggImage, 
+                    leftEye.x * canvasElement.width - 75, 
+                    leftEye.y * canvasElement.height - 75, 
+                    150, 150);
+
+                // 繪製右眼煎蛋
+                const rightEye = landmarks[386]; // 右眼中心點
+                canvasCtx.drawImage(eggImage, 
+                    rightEye.x * canvasElement.width - 75, 
+                    rightEye.y * canvasElement.height - 75, 
+                    150, 150);
+
+                // 檢查嘴巴是否張開
+                if (isMouthOpen(landmarks)) {
+                    const mouth = landmarks[13]; // 嘴巴中心點
+                    createParticles(
+                        mouth.x * effectCanvas.width,
+                        mouth.y * effectCanvas.height
+                    );
+                }
+            }
+            updateStatus("偵測到人臉");
+        } else {
+            updateStatus("未偵測到人臉");
+        }
+
+        // 更新粒子效果
+        updateParticles();
+
+        // 持續進行下一幀的預測
+        window.requestAnimationFrame(predictWebcam);
+    } catch (error) {
+        updateStatus(`預測錯誤: ${error.message}`);
+    }
+}
+
+// 啟動程式
+initializeFaceLandmarker();
+</script>
+
+</body>
+</html>
